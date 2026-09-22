@@ -47,6 +47,50 @@ def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def translation_groups(texts: list[str], max_items: int = 8, max_chars: int = 4200) -> list[list[str]]:
+    """Group subtitle lines so one web request can translate several lines safely."""
+    groups: list[list[str]] = []
+    current: list[str] = []
+    current_chars = 0
+    for text in texts:
+        marker_chars = 22
+        needed = len(text) + marker_chars
+        if current and (len(current) >= max_items or current_chars + needed > max_chars):
+            groups.append(current)
+            current = []
+            current_chars = 0
+        current.append(text)
+        current_chars += needed
+    if current:
+        groups.append(current)
+    return groups
+
+
+def translation_payload(texts: list[str]) -> str:
+    return "\n".join(f"[[[VSAI{index:04d}]]] {text}" for index, text in enumerate(texts))
+
+
+def parse_translation_payload(value: str, expected: int) -> list[str] | None:
+    """Split a translated batch. Return None when the service changed our markers."""
+    marker = re.compile(r"\[{1,3}\s*VSAI\s*0*(\d+)\s*\]{1,3}", re.IGNORECASE)
+    matches = list(marker.finditer(value or ""))
+    if len(matches) != expected:
+        return None
+    result: list[str | None] = [None] * expected
+    for position, match in enumerate(matches):
+        index = int(match.group(1))
+        if index < 0 or index >= expected or result[index] is not None:
+            return None
+        end = matches[position + 1].start() if position + 1 < len(matches) else len(value)
+        translated = clean_text(value[match.end():end])
+        if not translated:
+            return None
+        result[index] = translated
+    if any(item is None for item in result):
+        return None
+    return [item for item in result if item is not None]
+
+
 def write_srt(path: Path, segments: list[Segment]) -> None:
     rows = []
     for index, item in enumerate(segments, 1):
@@ -164,26 +208,98 @@ class VideoTranslator:
         self.progress(42, "Đang dịch sang tiếng Việt...")
         translator = GoogleTranslator(source="auto", target="vi")
         total = len(segments)
-        for start in range(0, total, 20):
+        groups = translation_groups([item.original for item in segments])
+        self.log(f"Đang dịch {total} đoạn trong {len(groups)} lượt để tránh giới hạn máy chủ.")
+        request_state = [0.0]
+        completed = 0
+        for group_number, texts in enumerate(groups, 1):
             self._check()
-            batch = segments[start:start + 20]
-            texts = [item.original for item in batch]
-            last_error: Exception | None = None
-            for attempt in range(3):
-                try:
-                    translated = translator.translate_batch(texts)
-                    if not translated or len(translated) != len(batch):
-                        raise RuntimeError("Dịch vụ trả về thiếu nội dung")
-                    for item, text in zip(batch, translated):
-                        item.vietnamese = clean_text(text or item.original)
-                    last_error = None
+            progress_value = 42 + completed / total * 18
+            payload = translation_payload(texts)
+            translated_text = self._translate_request(
+                translator,
+                payload,
+                request_state,
+                progress_value,
+                group_number,
+                len(groups),
+            )
+            translated = parse_translation_payload(translated_text, len(texts))
+            if translated is None:
+                self.log(f"Lượt {group_number}: máy chủ đã đổi dấu tách; chuyển sang chế độ dịch chậm an toàn.")
+                translated = []
+                for text in texts:
+                    translated.append(
+                        clean_text(
+                            self._translate_request(
+                                translator,
+                                text,
+                                request_state,
+                                progress_value,
+                                group_number,
+                                len(groups),
+                            )
+                        )
+                        or text
+                    )
+
+            batch = segments[completed:completed + len(texts)]
+            for item, text in zip(batch, translated):
+                item.vietnamese = clean_text(text or item.original)
+            completed += len(batch)
+            self.progress(42 + completed / total * 18, "Đang dịch sang tiếng Việt...")
+
+    def _translate_request(
+        self,
+        translator: object,
+        text: str,
+        request_state: list[float],
+        progress_value: float,
+        group_number: int,
+        group_total: int,
+    ) -> str:
+        """Translate one payload with pacing, cancellation and automatic retries."""
+        last_error: Exception | None = None
+        for attempt in range(5):
+            self._check()
+            elapsed = time.monotonic() - request_state[0]
+            if elapsed < 0.65:
+                self._cancelable_wait(0.65 - elapsed)
+            try:
+                result = translator.translate(text)  # type: ignore[attr-defined]
+                request_state[0] = time.monotonic()
+                if not result or not str(result).strip():
+                    raise RuntimeError("máy chủ không trả về nội dung")
+                return str(result)
+            except Exception as exc:
+                request_state[0] = time.monotonic()
+                last_error = exc
+                if attempt == 4:
                     break
-                except Exception as exc:
-                    last_error = exc
-                    time.sleep(1.5 * (attempt + 1))
-            if last_error:
-                raise RuntimeError(f"Dịch vụ dịch tạm thời gặp lỗi: {last_error}")
-            self.progress(42 + (start + len(batch)) / total * 18, "Đang dịch sang tiếng Việt...")
+                message = f"{type(exc).__name__}: {exc}".lower()
+                rate_limited = "toomanyrequests" in message or "too many requests" in message or "429" in message
+                waits = (6, 15, 30, 60)
+                wait_seconds = waits[attempt] if rate_limited else min(2 * (attempt + 1), 8)
+                self.log(
+                    f"Lượt dịch {group_number}/{group_total} tạm bị giới hạn; "
+                    f"tự thử lại sau {wait_seconds} giây ({attempt + 1}/4)."
+                )
+                self.progress(progress_value, f"Máy chủ đang bận — tự thử lại sau {wait_seconds} giây...")
+                self._cancelable_wait(wait_seconds)
+        raise RuntimeError(
+            "Dịch vụ dịch đang giới hạn kết nối. Tool đã tự chờ và thử lại nhiều lần. "
+            "Hãy đợi khoảng 10 phút rồi chạy lại; không cần cài lại tool. "
+            f"Chi tiết: {last_error}"
+        )
+
+    def _cancelable_wait(self, seconds: float) -> None:
+        deadline = time.monotonic() + max(0.0, seconds)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            if self.cancel_event.wait(min(0.25, remaining)):
+                raise Cancelled()
 
     def _make_dub(self, segments: list[Segment], source_audio: Path, destination: Path, voice: str) -> None:
         from pydub import AudioSegment

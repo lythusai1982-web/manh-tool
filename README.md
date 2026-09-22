@@ -33,6 +33,8 @@ Lỗi trong bản trước đến từ `CTranslate2` trên Windows. Bản này t
 
 Lỗi `No module named 'pkg_resources'` được xử lý bằng cách khóa `setuptools 80.9.0`, là phiên bản vẫn cung cấp thành phần mà `CTranslate2 4.6.0` cần.
 
+Lỗi `Too many requests` khi dịch video dài đã được xử lý bằng cách gộp nhiều câu trong một lượt, giới hạn tốc độ gửi và tự chờ/thử lại. Nếu máy chủ thay đổi dấu tách, tool tự chuyển sang chế độ dịch chậm an toàn thay vì làm hỏng phụ đề.
+
 Môi trường AI được đặt tại `C:\Users\Public\VietsubAI_Runtime`, tránh lỗi DLL khi tên tài khoản Windows hoặc thư mục tải xuống có dấu tiếng Việt, khoảng trắng hay `(1)`.
 
 Lần đầu chạy cần Internet và có thể lâu hơn vì công cụ tải mô hình nhận diện. Những lần sau mô hình được dùng lại từ máy.
