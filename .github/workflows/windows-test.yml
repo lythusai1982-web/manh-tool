@@ -33,16 +33,17 @@ jobs:
 
       - name: Kiem tra ma nguon va phu de
         run: |
-          python -m py_compile app.py pipeline.py launcher.py kiem_tra_he_thong.py
+          python -m py_compile app.py pipeline.py offline_engine.py launcher.py kiem_tra_he_thong.py
           python -m unittest discover -s tests -v
 
       - name: Dong goi ban Windows
         shell: pwsh
         run: |
           $items = @(
-            "app.py", "pipeline.py", "launcher.py", "kiem_tra_he_thong.py",
+            "app.py", "pipeline.py", "offline_engine.py", "launcher.py", "kiem_tra_he_thong.py",
             "requirements.txt", "Cai_Dat_Va_Chay.bat", "Chay_Nhanh.bat",
-            "SUA_LOI_VA_MO_TOOL.bat", "Kiem_Tra_Loi.bat", "README.md"
+            "SUA_LOI_VA_MO_TOOL.bat", "Kiem_Tra_Loi.bat", "README.md",
+            "THIRD_PARTY_NOTICES.md", "LICENSE"
           )
           Compress-Archive -Path $items -DestinationPath Vietsub_AI_Studio_Windows.zip -Force
 

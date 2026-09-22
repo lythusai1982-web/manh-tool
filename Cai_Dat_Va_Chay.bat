@@ -85,7 +85,7 @@ echo [4/5] Dang cai cac thanh phan can thiet. Vui long cho...
 if errorlevel 1 goto :install_failed
 "%VENV_PY%" -m pip install --no-cache-dir --force-reinstall "setuptools==80.9.0" >>"%SETUP_LOG%" 2>&1
 if errorlevel 1 goto :install_failed
-"%VENV_PY%" -m pip uninstall -y faster-whisper ctranslate2 numpy >>"%SETUP_LOG%" 2>&1
+"%VENV_PY%" -m pip uninstall -y faster-whisper ctranslate2 numpy edge-tts deep-translator >>"%SETUP_LOG%" 2>&1
 "%VENV_PY%" -m pip install --no-cache-dir --prefer-binary -r requirements.txt >>"%SETUP_LOG%" 2>&1
 if errorlevel 1 goto :install_failed
 "%VENV_PY%" -c "import pkg_resources; print('pkg_resources: OK')" >>"%SETUP_LOG%" 2>&1

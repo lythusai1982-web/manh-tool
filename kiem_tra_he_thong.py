@@ -10,8 +10,11 @@ MODULES = (
     "numpy",
     "ctranslate2",
     "faster_whisper",
-    "edge_tts",
-    "deep_translator",
+    "sentencepiece",
+    "onnxruntime",
+    "piper",
+    "requests",
+    "socksio",
     "pydub",
     "imageio_ffmpeg",
 )

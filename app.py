@@ -25,7 +25,7 @@ class VietsubApp(Tk):
         self.video_path = StringVar()
         self.output_dir = StringVar(value=str(Path.home() / "Videos" / "Vietsub AI"))
         self.model = StringVar(value="small")
-        self.voice = StringVar(value="Nữ miền Bắc — Hoài My")
+        self.voice = StringVar(value="Ngoại tuyến — Vais1000")
         self.mode = StringVar(value="Vietsub + giọng Việt")
         self.keep_original = BooleanVar(value=True)
         self.status = StringVar(value="Sẵn sàng")
@@ -52,7 +52,7 @@ class VietsubApp(Tk):
         outer = ttk.Frame(self, padding=24)
         outer.pack(fill=BOTH, expand=True)
         ttk.Label(outer, text="Dịch video thành tiếng Việt", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(outer, text="Tự nhận diện lời nói • Vietsub • lồng giọng Việt đồng bộ", style="Sub.TLabel").pack(anchor="w", pady=(3, 18))
+        ttk.Label(outer, text="Nhận diện • dịch • giọng Việt chạy cục bộ, không giới hạn lượt", style="Sub.TLabel").pack(anchor="w", pady=(3, 18))
 
         card = ttk.Frame(outer, style="Card.TFrame", padding=20)
         card.pack(fill=BOTH, expand=True)
@@ -73,7 +73,12 @@ class VietsubApp(Tk):
         ttk.Label(row, text="Độ chính xác", style="Card.TLabel").grid(row=0, column=2, sticky="w", padx=(8, 0))
         self.mode_box = ttk.Combobox(row, textvariable=self.mode, state="readonly", values=("Vietsub + giọng Việt", "Chỉ Vietsub", "Chỉ giọng Việt"))
         self.mode_box.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(7, 14), ipady=5)
-        self.voice_box = ttk.Combobox(row, textvariable=self.voice, state="readonly", values=("Nữ miền Bắc — Hoài My", "Nam miền Bắc — Nam Minh"))
+        self.voice_box = ttk.Combobox(
+            row,
+            textvariable=self.voice,
+            state="readonly",
+            values=("Ngoại tuyến — Vais1000",),
+        )
         self.voice_box.grid(row=1, column=1, sticky="ew", padx=8, pady=(7, 14), ipady=5)
         self.model_box = ttk.Combobox(row, textvariable=self.model, state="readonly", values=("base", "small", "medium"))
         self.model_box.grid(row=1, column=2, sticky="ew", padx=(8, 0), pady=(7, 14), ipady=5)
@@ -105,7 +110,8 @@ class VietsubApp(Tk):
 
         self.log = __import__("tkinter").Text(card, height=7, bg="#f7f8fc", fg="#556178", relief="flat", font=("Consolas", 9), wrap="word")
         self.log.pack(fill=BOTH, expand=True, pady=(15, 0))
-        self._log("Lần đầu chạy, mô hình nhận diện giọng nói sẽ được tải về máy.")
+        self._log("Lần đầu dùng một ngôn ngữ/giọng đọc, mô hình sẽ được tải về máy.")
+        self._log("Sau khi tải xong, phần dịch và giọng Việt chạy ngoại tuyến, không giới hạn lượt.")
         self._log("Chỉ xử lý video bạn sở hữu hoặc được phép sử dụng.")
 
     def _choose_video(self) -> None:
@@ -131,8 +137,7 @@ class VietsubApp(Tk):
         except OSError as exc:
             messagebox.showerror("Không thể lưu", str(exc))
             return
-        voice_id = "vi-VN-HoaiMyNeural" if self.voice.get().startswith("Nữ") else "vi-VN-NamMinhNeural"
-        values = (source, output, self.model.get(), voice_id, self.mode.get(), self.keep_original.get())
+        values = (source, output, self.model.get(), "vais1000", self.mode.get(), self.keep_original.get())
         self.cancel_event.clear()
         self.progress["value"] = 0
         self.percent.set("0%")
