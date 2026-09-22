@@ -1,0 +1,54 @@
+name: Kiem tra Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Tai ma nguon
+        uses: actions/checkout@v4
+
+      - name: Cai Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Cai thu vien
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --force-reinstall setuptools==80.9.0
+          python -m pip install -r requirements.txt
+
+      - name: Kiem tra he thong
+        run: python kiem_tra_he_thong.py
+
+      - name: Kiem tra ma nguon va phu de
+        run: |
+          python -m py_compile app.py pipeline.py launcher.py kiem_tra_he_thong.py
+          python -m unittest discover -s tests -v
+
+      - name: Dong goi ban Windows
+        shell: pwsh
+        run: |
+          $items = @(
+            "app.py", "pipeline.py", "launcher.py", "kiem_tra_he_thong.py",
+            "requirements.txt", "Cai_Dat_Va_Chay.bat", "Chay_Nhanh.bat",
+            "SUA_LOI_VA_MO_TOOL.bat", "Kiem_Tra_Loi.bat", "README.md"
+          )
+          Compress-Archive -Path $items -DestinationPath Vietsub_AI_Studio_Windows.zip -Force
+
+      - name: Luu goi da kiem tra
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vietsub_AI_Studio_Windows
+          path: Vietsub_AI_Studio_Windows.zip
+          if-no-files-found: error
